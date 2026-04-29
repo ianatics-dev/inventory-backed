@@ -129,6 +129,7 @@ class GunViewSet(viewsets.ModelViewSet):
                 qs = qs.exclude(type__iexact="Pistol")
 
 
+
         search = self.request.query_params.get("search", "").strip()
 
         if search:
