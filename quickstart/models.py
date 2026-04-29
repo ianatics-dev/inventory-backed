@@ -29,29 +29,57 @@ class BaseModel(models.Model):
     )
 
 class Guns(BaseModel):
-    DISPOSITION_CHOICES = (
-        ("ON_STOCK", "On Stock"),
-        ("ISSUED", "Issued"),
-        ("FOR_RELEASE", "For Release"),
+    SOURCE_CHOICES = (
+        ("PROCURED", "Procured"),
+        ("DONATED_FOUND_AT_STATION", "Donated Found at Station"),
+        ("LOANED", "Loaned"),
     )
 
-    faid = models.CharField(max_length=250, null=True, blank=True)
+    STATUS_CHOICES = (
+        ("SVC", "Svc"),
+        ("UNSVC", "Unsvc"),
+        ("BER", "BER"),
+    )
+
+    DISPOSITION_CHOICES = (
+        ("ISSUED", "Issued"),
+        ("ON_STOCK", "On Stock"),
+    )
+
     serial_no = models.CharField(max_length=250, null=True, blank=True)
     make = models.CharField(max_length=250, null=True, blank=True)
-    model = models.CharField(max_length=250, null=True, blank=True)
-    kind = models.CharField(max_length=250, null=True, blank=True)
+    type = models.CharField(max_length=250, null=True, blank=True)
     caliber = models.CharField(max_length=250, null=True, blank=True)
-    status = models.CharField(max_length=250, null=True, blank=True)
-    validated = models.CharField(max_length=250, null=True, blank=True)
+    property_no = models.CharField(max_length=250, null=True, blank=True)
 
-    # ✅ current disposition of the gun (single source of truth)
-    disposition = models.CharField(
-        max_length=50, choices=DISPOSITION_CHOICES, default="ON_STOCK",  null=True, blank=True
-    )
+    # if excel only stores year, consider IntegerField instead
+    acquisition_date = models.DateField(null=True, blank=True)
+
+    acquisition_cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, default=0)
+    cost_of_repair = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, default=0)
+    current_depreciated_value = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, default=0)
+
+    source = models.CharField(max_length=250, null=True, blank=True, choices=SOURCE_CHOICES, default="PROCURED")
+    status = models.CharField(max_length=250, null=True, blank=True, choices=STATUS_CHOICES, default="SVC")
+
+    balance_qty = models.IntegerField(null=True, blank=True, default=0)
+    balance_value = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, default=0)
+
+    on_hand_qty = models.IntegerField(null=True, blank=True, default=0)
+    on_hand_value = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, default=0)
+
+    short_qty = models.IntegerField(null=True, blank=True, default=0)
+    short_value = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, default=0)
+
+    over_qty = models.IntegerField(null=True, blank=True, default=0)
+    over_value = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, default=0)
+
+    disposition = models.CharField(max_length=250, null=True, blank=True, choices=DISPOSITION_CHOICES, default="ON_STOCK")
+
+    remarks = models.CharField(max_length=250, null=True, blank=True)
 
     def __str__(self):
-        return f"{self.faid or ''} - {self.make or ''} - {self.serial_no or ''}".strip()
-
+        return f"{self.property_no or ''} - {self.make or ''} - {self.serial_no or ''}".strip()
 
 class Persons(BaseModel):
     rank = models.CharField(max_length=250, null=True, blank=True)
@@ -67,7 +95,7 @@ class Persons(BaseModel):
     )
 
     def __str__(self):
-        return f"{(self.rank or '').strip()} {(self.name or '').strip()}".strip()
+        return f"{(self.rank or '').strip()} {(self.name or '').strip()} {(self.unit or '').strip()}".strip()
 
 
 class Pars(BaseModel):
