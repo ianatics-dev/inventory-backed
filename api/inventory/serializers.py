@@ -36,21 +36,33 @@ class GunSerializer(serializers.ModelSerializer):
         model = models.Guns
         fields = [
             "id",
-            "faid",
             "serial_no",
             "make",
-            "model",
-            "kind",
+            "type",
             "caliber",
+            "property_no",
+            "acquisition_date",
+            "acquisition_cost",
+            "cost_of_repair",
+            "current_depreciated_value",
+            "source",
             "status",
-            "validated",
+            "balance_qty",
+            "balance_value",
+            "on_hand_qty",
+            "on_hand_value",
+            "short_qty",
+            "short_value",
+            "over_qty",
+            "over_value",
+            # "validated",
             "disposition",
+            "remarks",
             "issued_to",
             "history",
         ]
 
     def get_issued_to(self, obj):
-        # If related_name is "issued_to", this works:
         person = getattr(obj, "issued_to", None)
         if not person:
             return None

@@ -7,5 +7,7 @@ from . import viewsets
 urlpatterns = [
     path('dashboard/', viewsets.DashboardViewset.as_view()),
     path('short_arm_pie/', viewsets.TotalShortFirearms.as_view()),
-    path('long_arm_pie/', viewsets.TotalShortFirearms.as_view()),
+    path('long_arm_pie/', viewsets.TotalLongFirearms.as_view()),
+    path('available_guns/', viewsets.GunsDropDownView.as_view()),
+    path('available_guns_longarm/', viewsets.LongArmGunsDropDownView.as_view()),
 ]
