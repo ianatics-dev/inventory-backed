@@ -1,6 +1,6 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from django.db.models import Count
+from django.db.models import Count, Case, When, Value, CharField
 from quickstart import models
 
 from rest_framework.views import APIView
@@ -9,6 +9,19 @@ from rest_framework.decorators import api_view
 from quickstart import models
 from accounts.permissions import IsAdminOrReadOnly
 from api.inventory import serializers
+from django.db.models.functions import ExtractYear, Cast
+from rest_framework.pagination import PageNumberPagination
+
+
+
+SHORT_ARM_TYPES = ["PISTOL", "REVOLVER"]
+
+
+class AcquisitionDetailsPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
 
 class DashboardViewset(APIView):
     permission_classes = [IsAdminOrReadOnly]
@@ -74,16 +87,53 @@ class TotalLongFirearms(APIView):
         return Response(data)
 
 @api_view(["GET"])
-def long_arm_pie(request):
-    data = [
-        {"name": "M16", "value": 62},
-        {"name": "M4", "value": 45},
-        {"name": "GALIL", "value": 30},
-        {"name": "SMG", "value": 15},
-        {"name": "THOMPSON", "value": 10},
-        {"name": "NORINCO", "value": 8},
-    ]
-    return Response(data)
+def issued_summary_by_year(request):
+    data = (
+        models.GunHistory.objects
+        .filter(event_type="ISSUED", date__isnull=False)
+        .annotate(year=ExtractYear("date"))
+        .values("year")
+        .annotate(issued=Count("id"))
+        .order_by("year")
+    )
+
+    return Response([
+        {
+            "year": item["year"],
+            "issued": item["issued"],
+        }
+        for item in data
+    ])
+
+
+@api_view(["GET"])
+def issued_details_by_year(request, year):
+    histories = (
+        models.GunHistory.objects
+        .filter(event_type="ISSUED", date__year=year)
+        .select_related("gun", "person")
+        .order_by("-date", "-id")
+    )
+
+    rows = []
+
+    for history in histories:
+        gun = history.gun
+        person = history.person
+
+        rows.append({
+            "id": history.id,
+            "serial_no": gun.serial_no if gun else "",
+            "type": gun.type if gun else "",
+            "make": gun.make if gun else "",
+            "issued_to": person.name if person else "",
+            "rank": getattr(person, "rank", ""),
+            "unit": person.unit if person else "",
+            "sub_unit": person.sub_unit if person else "",
+            "date_issued": history.date,
+        })
+
+    return Response(rows)
 
 class GunsDropDownView(APIView):
     permission_classes = [IsAdminOrReadOnly]
@@ -104,3 +154,89 @@ class LongArmGunsDropDownView(APIView):
 
 
         return Response(serializer.data)
+
+
+def acquisition_summary_queryset(qs):
+    dated = (
+        qs.filter(acquisition_date__isnull=False)
+        .annotate(year=Cast(ExtractYear("acquisition_date"), CharField()))
+        .values("year")
+        .annotate(count=Count("id"))
+        .order_by("year")
+    )
+
+    no_date_count = qs.filter(acquisition_date__isnull=True).count()
+
+    data = list(dated)
+
+    if no_date_count > 0:
+        data.append({
+            "year": "No Date",
+            "count": no_date_count,
+        })
+
+    return data
+
+
+@api_view(["GET"])
+def short_arm_acquisition_summary(request):
+    qs = models.Guns.objects.filter(type__in=SHORT_ARM_TYPES)
+
+    return Response(acquisition_summary_queryset(qs))
+
+
+@api_view(["GET"])
+def long_arm_acquisition_summary(request):
+    qs = models.Guns.objects.exclude(type__in=SHORT_ARM_TYPES)
+
+    return Response(acquisition_summary_queryset(qs))
+
+
+def paginate_guns(request, qs):
+    paginator = AcquisitionDetailsPagination()
+    page = paginator.paginate_queryset(qs, request)
+
+    data = [
+        {
+            "id": gun.id,
+            "serial_no": gun.serial_no,
+            "type": gun.type,
+            "make": gun.make,
+            "caliber": gun.caliber,
+            "property_no": gun.property_no,
+            "acquisition_date": gun.acquisition_date,
+            "status": gun.status,
+            "disposition": gun.disposition,
+        }
+        for gun in page
+    ]
+
+    return paginator.get_paginated_response(data)
+
+
+@api_view(["GET"])
+def short_arm_acquisition_details(request, year):
+    qs = models.Guns.objects.filter(type__in=SHORT_ARM_TYPES)
+
+    if year == "no-date":
+        qs = qs.filter(acquisition_date__isnull=True)
+    else:
+        qs = qs.filter(acquisition_date__year=year)
+
+    qs = qs.order_by("type", "make", "serial_no")
+
+    return paginate_guns(request, qs)
+
+
+@api_view(["GET"])
+def long_arm_acquisition_details(request, year):
+    qs = models.Guns.objects.exclude(type__in=SHORT_ARM_TYPES)
+
+    if year == "no-date":
+        qs = qs.filter(acquisition_date__isnull=True)
+    else:
+        qs = qs.filter(acquisition_date__year=year)
+
+    qs = qs.order_by("type", "make", "serial_no")
+
+    return paginate_guns(request, qs)
